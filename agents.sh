@@ -3,7 +3,7 @@
 # (so every agent reads AGENTS.md / CLAUDE.md and can run harness.py).
 #
 # Usage:   ./agents.sh p1-a:codex p1-b:claude:high p1-c:claude
-#          name:tool[:effort]  tool = codex | claude | fable (Claude on the Fable model)
+#          name:tool[:effort]  tool = codex | claude | claude2 (2nd account) | fable (Fable model)
 #          effort = low | medium | high | xhigh (claude/fable also max). Leave out for the default.
 #          A name that is already open is skipped, so re-running never makes duplicates.
 #
@@ -33,8 +33,10 @@ for spec in "$@"; do
   case "$tool" in
     codex)  cmd="$CODEX_CMD${effort:+ -c model_reasoning_effort=$effort}" ;;
     claude) cmd="$CLAUDE_CMD${effort:+ --effort $effort}" ;;
+    # second Claude account: its own login lives in ~/.claude-2 (log in once: see ORCHESTRATOR.md)
+    claude2) cmd="CLAUDE_CONFIG_DIR=$HOME/.claude-2 $CLAUDE_CMD${effort:+ --effort $effort}" ;;
     fable)  cmd="$CLAUDE_CMD --model fable${effort:+ --effort $effort}" ;;
-    *) echo "unknown tool '$tool' in '$spec' (use codex, claude or fable)"; exit 1 ;;
+    *) echo "unknown tool '$tool' in '$spec' (use codex, claude, claude2 or fable)"; exit 1 ;;
   esac
   if tmux list-windows -t "$SESSION" -F '#{window_name}' | grep -qxF -- "$name"; then
     echo "'$name' is already open - skipped (to restart it: close it with Ctrl-b & first)"

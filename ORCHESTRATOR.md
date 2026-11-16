@@ -35,6 +35,7 @@ Add it as a third part when launching: `name:tool:effort`.
 | `p1-b:claude:high` | Claude, high effort (recommended for the main optimiser) |
 | `p1-c:claude` | Claude, default effort |
 | `p3-b:fable` | Claude on the Fable model |
+| `p1-c:claude2` | Claude on your SECOND account (see section 10) |
 
 Efforts: `low`, `medium`, `high`, `xhigh` (Claude/Fable also have `max`).
 
@@ -99,6 +100,24 @@ Ideas to hand out when stuck:
 - "Tune the CONFIG temperatures: try start_temp 10x bigger and 10x smaller."
 - "Look at which tests score lowest and focus on those."
 
+### When is an agent "done"?
+- **Builder (`a`)** is done when it says the checker and tests are ready and reports a first
+  score, and `python3 harness.py status` shows a line for that problem. Then it stops by itself.
+- **Optimisers (`b`, `c`) are never done.** They keep trying ideas until you stop them. After every
+  attempt they print one line like `NEW BEST score=0.71 (best 0.65) ... idea=...`.
+  A problem is "done enough" when its best is submitted on HackerRank, and it is "safe" at 70%+.
+
+### What to look out for
+| You see | Do this |
+|---------|---------|
+| A question, menu, or "Do you want to...?" | Answer it. The agent is frozen until you do |
+| `NEW BEST` | Submit `best/pN/BEST.cpp` to HackerRank (section 6) |
+| HackerRank score far from the local score | The checker is wrong: section 5 |
+| `INVALID`, `zero=` above 0, `TIMEOUT`, `SLOW` | Tell the agent: "Fix the invalid/slow tests first" |
+| Same best for 15 min | Give a new idea (list below), or try `fable` |
+| Agent writing Python solutions, editing the checker (if not `a`), or working outside its folder | "Stop. Follow AGENTS.md." |
+| "usage limit" / "rate limit" message | Out of Claude usage: section 10 |
+
 ## 5. Check the checker (the most important thing you do)
 
 The agents chase the score that `checker.py` gives. If the checker is wrong, they chase the
@@ -145,3 +164,21 @@ Afterwards, reset the practice scores with `rm -rf best`.
 - `INVALID: ...` - the answer broke a rule on that test (scores 0). The agent must fix it.
 - `TIMEOUT` / `SLOW` - too close to the time limit. Ask the agent to lower `time_budget_s`.
 - `No checker at ...` - agent `a` hasn't built the checker yet.
+
+## 10. Second Claude account (when one runs out)
+
+Each account keeps its own login, so both can run at the same time.
+
+**Set up once, before 18:00** (in the Ubuntu app):
+```
+cd ~/c3 && CLAUDE_CONFIG_DIR=~/.claude-2 claude
+```
+Log in with the SECOND account, say yes to trusting the folder, then type `/exit`.
+
+**Use it:** launch with `claude2` instead of `claude`, e.g. `./agents.sh p1-c:claude2`.
+Tip: put the `b` agents on your main account and `c` agents on `claude2`, so neither runs out as fast.
+
+**An agent hit its usage limit?** Its work is saved in files (its code, `NOTES.md`, `best/`), so:
+1. Close its window: `Ctrl-b &`, then `y`.
+2. Relaunch the same name on the other account: `./agents.sh p1-b:claude2:high`
+3. Brief it: `You are agent p1-b.` It reads its NOTES.md log and carries on.

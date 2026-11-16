@@ -53,6 +53,8 @@ Build and score a C++ solution (save the .cpp source, not the binary):
 4. Improve ONE idea at a time. After each change, run the harness on ALL tests and report
    one line: `score=0.812 (best 0.790) max_time=3.1s idea=<what changed>`.
    If the harness printed NEW BEST, start your line with `NEW BEST` so the orchestrator submits it.
+   Also append that line to `pN/<you>/NOTES.md`, so a fresh agent can carry on where you stopped.
+   If NOTES.md already has a log when you start, you ARE that fresh agent: read it and continue.
 5. Keep going until told to stop. If an idea fails twice, say so and propose the next one.
 
 ## Hard rules for the solution you submit

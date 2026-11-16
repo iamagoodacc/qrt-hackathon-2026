@@ -5,6 +5,7 @@ Generate tests:     python3 p0/checker.py gen
 """
 import math
 import random
+import re
 import sys
 from pathlib import Path
 
@@ -32,7 +33,7 @@ def parse_input(inp: str):
 
 
 def parse_output(out: str, n: int):
-    lines = [ln for ln in out.strip().splitlines() if ln.strip()]
+    lines = out.splitlines()
     if len(lines) != n:
         raise Invalid(f"expected {n} lines, got {len(lines)}")
     coords = []
@@ -40,6 +41,8 @@ def parse_output(out: str, n: int):
         parts = ln.split()
         if len(parts) != 2:
             raise Invalid(f"line {i}: expected 2 integers, got {ln!r}")
+        if any(re.fullmatch(r"[+-]?[0-9]+", part) is None for part in parts):
+            raise Invalid(f"line {i}: not integers: {ln!r}")
         try:
             coords.append((int(parts[0]), int(parts[1])))
         except ValueError:
@@ -51,8 +54,8 @@ def lower_bound(sides) -> int:
     m = max(sides)
     total = sum(s * s for s in sides)
     best = None
-    for width in range(m, max(m, math.ceil(total / m)) + 1):
-        area = width * max(m, math.ceil(total / width))
+    for width in range(m, (total + m - 1) // m + 1):
+        area = width * max(m, (total + width - 1) // width)
         best = area if best is None else min(best, area)
     return best
 

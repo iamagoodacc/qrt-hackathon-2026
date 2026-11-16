@@ -1,0 +1,16 @@
+17:27:19 p0 0.1597 /home/wangz/c3/p0/a/solve.cpp baseline
+17:30:09 p0 0.7550 /home/wangz/c3/p0/c/solve.cpp p0-c skyline DFS fixed container, shrink target
+17:30:40 p0 0.8065 /home/wangz/c3/p0/b/solve.cpp best-fit skyline + random targets
+17:41:28 p0 0.8188 /home/wangz/c3/p0/c/solve4.cpp p0-c DFS + exact/level bonus + taller-side placement + noisy restarts
+18:45:37 p1 0.3191 /home/wangz/c3/p1/a/solve.cpp baseline: descending next-fit shelves, sampled widths
+18:48:14 p1 0.7761 /home/wangz/c3/p1/b/solve.cpp p1-b: p0 skyline DFS ported to stub, segment skyline, sampled widths
+18:50:44 p1 0.8135 /home/wangz/c3/p1/c/beam.cpp p1-c beam search skyline in fixed container, B 8->512
+19:03:06 p2 0.0820 /home/wangz/c3/p2/a/solve.cpp baseline: separated required rows, verified filler
+19:04:33 p2 0.5109 /home/wangz/c3/p2/b/solve.cpp p2-b SA over word placements (conflict cost), shrink N, safe filler letter
+19:04:46 p2 0.5160 /home/wangz/c3/p2/c/solve.cpp p2-c max-overlap greedy, K=4 lookahead, restarts, shrink N
+19:06:10 p2 0.5225 /home/wangz/c3/p2/c/solve2.cpp p2-c LNS ejection search (tabu) for shrinking N
+19:10:16 p2 0.5252 /home/wangz/c3/p2/c/solve2.cpp p2-c LNS + forbidden-ban + row fallback + greedy/LNS restarts
+19:11:21 p2 0.5188 /home/wangz/c3/p2/b/solve3.cpp p2-b SA + occupancy reward 0.2, T 0.3->0.1, conflict-focused word pick
+19:14:26 p2 0.5225 /home/wangz/c3/p2/c/solve2.cpp p2-c LNS 3.5x faster scan + ejection weights (WI=1,TB=3)
+19:25:54 p4 0.9878 /home/wangz/c3/p4/a/solve.cpp baseline: geometric loops with mask-CSP fallback; fixed witness refs
+19:30:36 p4 1.0000 /home/wangz/c3/p4/b/solve2.cpp p4-b edge CSP + longest-chain DFS + B&B restarts, with p4-a geometric loops as start

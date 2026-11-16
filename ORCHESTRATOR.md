@@ -168,10 +168,13 @@ wrong thing. As soon as the first valid answer exists, submit it to HackerRank a
 
 The file to submit is always `best/pN/BEST.cpp` (the harness only overwrites it when the score improves).
 1. Copy it to your clipboard: `clip.exe < best/p1/BEST.cpp`
-2. HackerRank: open the problem, set the language to C++, paste over the editor, Submit.
-3. Compare the score with `python3 harness.py status`.
+2. HackerRank: open the problem, language C++23. Do NOT select-all: HackerRank's folded
+   `#include` line and `int main()` must stay. Select from the `/*` comment down to the stub
+   function's closing `}`, delete it, and paste in its place. Submit.
+3. Paste HackerRank's result back to that problem's agent, and compare with `python3 harness.py status`.
 
-Submit every time the best jumps, not just at the end. **Only what is on HackerRank counts.**
+Submit every time the best jumps, not just at the end. **Your LAST submission on each problem
+must be your best** (the official score may use the final one).
 
 ## 7. Timeline
 

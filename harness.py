@@ -33,6 +33,7 @@ CONFIG = {
     "test_glob": "*.in",
     "stderr_tail_chars": 300,
     "min_gain": 1e-9,       # a new best must beat the old one by more than this
+    "pause_file": "PAUSE",  # orchestrator: `touch PAUSE` to pause all agents, `rm PAUSE` to resume
 }
 
 
@@ -118,6 +119,9 @@ def cmd_run(args) -> None:
         if zeros:
             print(f"NOTE: {zeros} test(s) scored 0 - check INVALID/TIMEOUT lines above")
         save_if_better(args.problem, (ROOT / args.save).resolve(), mean, args.note)
+    if (ROOT / CONFIG["pause_file"]).exists():
+        print(f"PAUSED: the orchestrator created {CONFIG['pause_file']}. Start nothing new: report a "
+              "3-line status, then wait until the file is gone (see AGENTS.md, 'Pausing').")
 
 
 def cmd_status(_args) -> None:

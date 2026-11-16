@@ -57,6 +57,13 @@ Build and score a C++ solution (save the .cpp source, not the binary):
    If NOTES.md already has a log when you start, you ARE that fresh agent: read it and continue.
 5. Keep going until told to stop. If an idea fails twice, say so and propose the next one.
 
+## Pausing
+If the harness prints `PAUSED`, or a file named `PAUSE` exists in the repo root (check with
+`ls PAUSE` before starting each new idea), the orchestrator wants to check in:
+1. Start nothing new. Report 3 lines: current best, what you just tried, what you'll try next.
+2. Wait with `while [ -f PAUSE ]; do sleep 15; done` (if that command times out, run it again).
+3. When the file is gone, carry on exactly where you left off.
+
 ## Hard rules for the solution you submit
 - One self-contained file. Read stdin, write the answer to stdout. Debug output ONLY to stderr.
 - Language: C++17 for the submitted solution (team decision). Python is fine for checkers,

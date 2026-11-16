@@ -92,8 +92,16 @@ Then launch and brief the agents.
 **Checking progress never needs a pause.** Agents keep working while you look:
 - `watch -n 30 python3 harness.py status` in `home` = live scoreboard (`Ctrl-C` stops watching).
 - `tail best/log.txt` = every saved attempt: time, problem, score, file, idea.
-- **To really pause one agent:** press `Esc` in its window. It stops and waits. Ask it something
-  ("Summarise what you've tried and what's next, in 3 lines"), then type `continue`.
+
+**Pausing without breaking anything:**
+- **Pause ALL agents gently:** in `home`, run `touch PAUSE`. Each agent finishes its current step
+  (usually within a few minutes, at the end of its next test run), writes a 3-line status, and
+  waits. **Resume all:** `rm PAUSE`.
+- **Talk to one Claude agent without stopping it:** just type your message and press Enter while
+  it works. It reads it at its next step.
+- **Stop one agent right now:** press `Esc`. This is safe too: `best/` is only ever written by
+  the harness after a complete run, so your best answers can't get damaged. At worst the agent's
+  current experiment is half-done. Type `continue` and it finishes it.
 
 **Agent not improving for 15 minutes?** Give it a new idea (list below). If it seems
 confused, start it fresh: type `/clear` (Claude) or `/new` (Codex), then the one-line brief again.

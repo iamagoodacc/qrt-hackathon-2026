@@ -8,11 +8,13 @@ them unblocked, check the scoreboard, and paste the best answers into HackerRank
 Each problem gets 2 or 3 agents. Their name tells them their job (the rules are in
 `AGENTS.md`, which they read automatically):
 
-| Window | Tool   | Role      | What it does |
-|--------|--------|-----------|--------------|
-| `p1-a` | claude | Builder   | Reads the problem, builds the local scorer (`checker.py`) and tests, writes the first valid answer, then improves it |
-| `p1-b` | codex  | Annealer  | C++ "simulated annealing": keeps making small random changes and keeping the good ones |
-| `p1-c` | codex  | Wildcard  | Optional. Double-checks the scorer against the statement, then tries a completely different method |
+| Window | Tool   | Role             | What it does |
+|--------|--------|------------------|--------------|
+| `p1-a` | codex  | Builder          | Reads the problem, builds the local scorer (`checker.py`) and tests, writes a first valid answer, then STOPS (saves credits) |
+| `p1-b` | claude | Main optimiser   | C++ "simulated annealing": keeps making small random changes and keeping the good ones |
+| `p1-c` | claude | Second optimiser | Optional. Double-checks the scorer against the statement, then tries a completely different method |
+
+Launch all three: `./agents.sh p1-a:codex p1-b:claude:high p1-c:claude`
 
 **The brief is one line.** In each agent's window type, e.g.:
 ```
@@ -20,7 +22,26 @@ You are agent p1-a.
 ```
 To steer an agent, add an idea: `You are agent p1-b. Idea: moves = swap two items.`
 
-Why two AI tools: different AIs try different ideas, and Codex runs on the free $25 OpenAI credit.
+Claude does the main optimising. Codex only does the short builder job, because its credits are
+limited. Once `p1-a` has stopped, you can reuse it for another problem: `You are agent p4-a.`
+
+### Choosing the model and effort
+Higher effort = the agent thinks longer per step: smarter, but slower and uses up credits faster.
+Add it as a third part when launching: `name:tool:effort`.
+
+| You type | What starts |
+|----------|-------------|
+| `p1-a:codex` | Codex, default effort |
+| `p1-b:claude:high` | Claude, high effort (recommended for the main optimiser) |
+| `p1-c:claude` | Claude, default effort |
+| `p3-b:fable` | Claude on the Fable model |
+
+Efforts: `low`, `medium`, `high`, `xhigh` (Claude/Fable also have `max`).
+
+**Fable uses up your allowance very fast.** Run at most one Fable agent at a time. Save it for the
+hardest problem, or as a rescue when a problem is stuck below 70%. Don't combine it with `max`.
+
+Changing a running agent: in Claude type `/effort` or `/model`; in Codex type `/model`.
 
 ## 2. tmux in 2 minutes
 
@@ -28,16 +49,21 @@ tmux = one terminal holding many windows, one per agent.
 
 - **Use the Ubuntu app (Windows Terminal), not VS Code's terminal.** VS Code steals `Ctrl-b`
   (it toggles its sidebar). Keep VS Code open beside it for reading files.
-- **Start agents:** `cd ~/c3 && ./agents.sh p1-a:claude p1-b:codex`
-- **Switch windows:** click a window name in the bar at the bottom of the screen.
-- **Scroll:** mouse wheel. **Copy text:** hold Shift while you drag to select.
+- **Start agents:** `cd ~/c3 && ./agents.sh p1-a:codex p1-b:claude:high`
+- **The bar at the bottom** lists your windows, e.g. `0:home 1:p1-a 2:p1-b*`. The `*` marks
+  the one you're looking at. **Click a name to switch to it.**
+- **Scroll:** mouse wheel (press `q` to stop scrolling). **Copy text:** hold Shift and drag.
 - **Keys** (press `Ctrl-b`, let go, then the key):
   - `w` - list all windows, pick one with the arrow keys + Enter
   - `n` / `p` - next / previous window
-  - `d` - detach: hides tmux, agents keep running. Come back with `tmux attach -t c3`
-- **Add agents later:** go to the `home` window and run `./agents.sh p2-a:claude` again.
-- **Agent window shows a plain `$` prompt?** The agent quit. Type `claude` or
-  `codex --sandbox workspace-write` to restart it, then re-brief it.
+  - `&` - close the window you're in (press `y` to confirm)
+  - `d` - hide tmux; agents keep running. Come back with `tmux attach -t c3`
+- **Closed the terminal by accident?** tmux and your agents are still running in the
+  background. Run `tmux attach -t c3` to get them back. (Re-running `./agents.sh` with the same
+  names also just reopens them; it never makes duplicates.)
+- **Add agents later:** go to the `home` window and run `./agents.sh p2-a:codex` again.
+- **Agent window shows a plain `$` prompt?** The agent quit. Close the window (`Ctrl-b &`) and
+  launch it again with `./agents.sh`, then re-brief it.
 - **Close everything:** `tmux kill-session -t c3`
 - **tmux annoying you?** Just open one terminal tab per agent and run `cd ~/c3 && claude`
   (or `codex --sandbox workspace-write`) in each. It works the same.
@@ -45,9 +71,9 @@ tmux = one terminal holding many windows, one per agent.
 ## 3. First launch of each tool
 
 - **Codex** asks whether to trust the folder: say **yes**, or it won't read `AGENTS.md`.
-- **Claude** asks before running commands. Choose "Yes, and don't ask again" for routine
-  commands (`g++`, `python3 harness.py`) so it stops asking. `Shift+Tab` switches it into
-  "accept edits" mode so file edits stop asking too.
+- **Claude** starts in "auto" permission mode, so routine work (editing files, compiling,
+  running the harness) doesn't ask you. It still stops to ask about anything risky. If it
+  does ask, "Yes, and don't ask again" stops repeats.
 - A "stuck" agent is very often just waiting for you to answer a question. Check every window.
 
 ## 4. Your loop on the night
@@ -104,9 +130,10 @@ Submit every time the best jumps, not just at the end. **Only what is on HackerR
 
 `p0` is a practice problem with a scorer and tests already built.
 ```
-cd ~/c3 && ./agents.sh p0-a:claude p0-b:codex
+cd ~/c3 && ./agents.sh p0-a:codex p0-b:claude:high
 ```
 Type `You are agent p0-a.` in one window and `You are agent p0-b.` in the other.
+(p0's scorer already exists, so `p0-a` just writes a simple answer and stops.)
 Goal: get from 0.046 to above 0.5. Practise switching windows, answering prompts, running
 `python3 harness.py status`, and copying `best/p0/BEST.*` with `clip.exe`.
 Afterwards, reset the practice scores with `rm -rf best`.

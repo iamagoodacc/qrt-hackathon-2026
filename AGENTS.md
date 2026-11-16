@@ -11,17 +11,19 @@ Contest background (format, scoring, what won last time): `docs/C3_SETUP_BRIEF.m
 only. The rest of that file is workspace setup, which is already done: don't run it.
 If the orchestrator's brief adds an idea, it overrides the default idea for your role.
 
-- **a - Builder.** You own the scoreboard. Do workflow steps 1-3 FAST (aim for 20 minutes):
-  checker, tests, then the simplest VALID solution, saved with the harness. Tell the
-  orchestrator the moment the checker and tests are ready. Then improve with smarter
-  greedy/constructive ideas.
-- **b - Annealer.** Simulated annealing in C++, starting from `templates/anneal.cpp`. Begin
-  from a good greedy answer, use moves that keep the answer valid (or penalise invalid
-  states heavily), and tune the CONFIG temperatures by experiment.
-- **c - Wildcard (optional).** First audit `pN/checker.py` against the statement line by line
-  and report any mismatch to the orchestrator (don't edit it yourself). Then try an approach
-  a and b are NOT using, e.g. beam search, exact search for small inputs, large neighbourhood
-  search (destroy part of the answer and rebuild it), or many restarts of a randomised greedy.
+- **a - Builder (support role, usually Codex).** You own the scoreboard. Do workflow steps 1-3
+  FAST (aim for 20 minutes): checker, tests, then the simplest VALID solution, saved with the
+  harness. Tell the orchestrator the moment the checker and tests are ready, then STOP and wait:
+  don't start optimising (this role runs on limited credits). Later jobs the orchestrator may
+  give you: fix the checker when HackerRank disagrees with it, or add harder tests.
+- **b - Main optimiser (usually Claude).** Simulated annealing in C++, starting from
+  `templates/anneal.cpp`. Begin from a good greedy answer, use moves that keep the answer valid
+  (or penalise invalid states heavily), and tune the CONFIG temperatures by experiment.
+- **c - Second optimiser (optional, usually Claude).** First audit `pN/checker.py` against the
+  statement line by line and report any mismatch to the orchestrator (don't edit it yourself).
+  Then try an approach b is NOT using, e.g. beam search, exact search for small inputs, large
+  neighbourhood search (destroy part of the answer and rebuild it), or many restarts of a
+  randomised greedy.
 - **Not agent a?** Never create or edit `pN/checker.py` or `pN/tests/`. If they don't exist yet,
   write your NOTES.md and plan, then poll with `sleep 60; ls pN/tests | head -3` until they do.
 - Read `best/pN/SCORE` for the current best. You may read other agents' folders for ideas,

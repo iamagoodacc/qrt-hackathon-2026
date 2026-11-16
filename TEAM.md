@@ -26,8 +26,9 @@ The AI writes the code; we read problems, steer the agents, and submit the best 
   - one problem each (p1, p2, p3 by default; swap if someone prefers a problem),
   - whoever's problem looks easiest also takes p4 and launches agents on it straight away.
 - **Each owner, on their own laptop:** paste the statement into `pN/statement.md`, then run
-  `./agents.sh pN-a:claude pN-b:codex` and type `You are agent pN-a.` / `You are agent pN-b.`
-  (no Claude? use `pN-a:codex` instead).
+  `./agents.sh pN-a:codex pN-b:claude:high` and type `You are agent pN-a.` / `You are agent pN-b.`
+  Codex builds the scorer and stops (saves its credits); Claude does the optimising.
+  (No Claude? Use `pN-b:codex:high` instead.)
 - **Post in the group chat** when your problem: has its first valid submission, passes 70%,
   or scores very differently on HackerRank than locally.
 - **Targets:** valid submission on every problem by ~40 min; 70%+ on all four next (unlocks

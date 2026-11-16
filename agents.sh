@@ -1,22 +1,25 @@
 #!/usr/bin/env bash
-# Launch several coding agents, one tmux window each, all started from the repo root
-# (so every agent sees AGENTS.md / CLAUDE.md and can run harness.py).
+# Launch coding agents, one tmux window each, all started from the repo root
+# (so every agent reads AGENTS.md / CLAUDE.md and can run harness.py).
 #
-# Usage:   ./agents.sh p1-a:codex p1-b:claude p2-a:codex
-#          (name:tool  - the name labels the window; tell the agent its folder in your brief)
+# Usage:   ./agents.sh p1-a:codex p1-b:claude:high p1-c:claude
+#          name:tool[:effort]  tool = codex | claude | fable (Claude on the Fable model)
+#          effort = low | medium | high | xhigh (claude/fable also max). Leave out for the default.
+#          A name that is already open is skipped, so re-running never makes duplicates.
 #
 # tmux keys (press Ctrl-b, let go, then the key):
-#   n / p   next / previous window        w   pick a window from a list
-#   0-9     jump to window number          d   detach (agents keep running; reattach: tmux attach -t c3)
+#   w   pick a window from a list           n / p   next / previous window
+#   &   close this window (y to confirm)    d   hide tmux, agents keep running (back: tmux attach -t c3)
+# Close everything: tmux kill-session -t c3
 set -euo pipefail
 
 SESSION="${SESSION:-c3}"
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 CODEX_CMD="${CODEX_CMD:-codex --sandbox workspace-write}"
-CLAUDE_CMD="${CLAUDE_CMD:-claude}"
+CLAUDE_CMD="${CLAUDE_CMD:-claude --permission-mode auto}"   # auto = fewer permission prompts
 
 if [ "$#" -eq 0 ]; then
-  sed -n '2,12p' "$0"
+  sed -n '2,13p' "$0"
   exit 1
 fi
 
@@ -26,13 +29,17 @@ if ! tmux has-session -t "$SESSION" 2>/dev/null; then
 fi
 
 for spec in "$@"; do
-  name="${spec%%:*}"
-  tool="${spec##*:}"
+  IFS=: read -r name tool effort <<< "$spec"
   case "$tool" in
-    codex)  cmd="$CODEX_CMD" ;;
-    claude) cmd="$CLAUDE_CMD" ;;
-    *) echo "unknown tool '$tool' in '$spec' (use codex or claude)"; exit 1 ;;
+    codex)  cmd="$CODEX_CMD${effort:+ -c model_reasoning_effort=$effort}" ;;
+    claude) cmd="$CLAUDE_CMD${effort:+ --effort $effort}" ;;
+    fable)  cmd="$CLAUDE_CMD --model fable${effort:+ --effort $effort}" ;;
+    *) echo "unknown tool '$tool' in '$spec' (use codex, claude or fable)"; exit 1 ;;
   esac
+  if tmux list-windows -t "$SESSION" -F '#{window_name}' | grep -qxF -- "$name"; then
+    echo "'$name' is already open - skipped (to restart it: close it with Ctrl-b & first)"
+    continue
+  fi
   # "; exec bash" keeps the window open if the agent exits, so you can read what happened
   tmux new-window -t "$SESSION" -n "$name" -c "$ROOT" "$cmd; exec bash"
 done

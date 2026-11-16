@@ -30,7 +30,19 @@ If the orchestrator's brief adds an idea, it overrides the default idea for your
   but only write in your own.
 
 Build and score a C++ solution (save the .cpp source, not the binary):
-`g++ -std=c++17 -O2 -o pN/<you>/solve pN/<you>/solve.cpp && python3 harness.py run pN "./pN/<you>/solve" --save pN/<you>/solve.cpp --note "<idea>" --time-limit <T>`
+`g++ -std=c++17 -O2 -DLOCAL -o pN/<you>/solve pN/<you>/solve.cpp && python3 harness.py run pN "./pN/<you>/solve" --save pN/<you>/solve.cpp --note "<idea>" --time-limit <T>`
+
+## HackerRank function stubs (IMPORTANT)
+HackerRank supplies its own hidden `main()` and only lets us fill in ONE function, with the exact
+signature shown in `pN/statement.md` (e.g. `vector<vector<int>> pack_squares(vector<int> squares)`).
+So every `solve.cpp` must be paste-ready:
+- `#include <bits/stdc++.h>` + `using namespace std;`, your helpers, then the required function
+  with EXACTLY the stub's name, parameter types and return type.
+- Your own stdin-reading `main()` goes inside `#ifdef LOCAL ... #endif` (the harness compiles with
+  `-DLOCAL`; HackerRank doesn't, so it ignores that main).
+- Don't name anything `ltrim`, `rtrim` or `split`: HackerRank's hidden code usually defines them.
+- Start the time-budget clock INSIDE the function, and reset ALL global state at the start of the
+  function, in case it is called more than once in one run.
 
 ## Folder layout
 - `harness.py`        - scores a solution on all tests and keeps the best version. Never edit it.
@@ -67,14 +79,15 @@ If the harness prints `PAUSED`, or a file named `PAUSE` exists in the repo root 
 3. When the file is gone, carry on exactly where you left off.
 
 ## Hard rules for the solution you submit
-- One self-contained file. Read stdin, write the answer to stdout. Debug output ONLY to stderr.
+- One self-contained, paste-ready file (see "HackerRank function stubs"). Debug output ONLY to stderr.
 - Language: C++17 for the submitted solution (team decision). Python is fine for checkers,
   generators and offline helper scripts.
 - Standard library only (Python 3 or C++17). Assume numpy, OR-Tools etc. are NOT available on
   HackerRank unless the orchestrator says otherwise. (You MAY use them in offline helper scripts.)
 - Respect the time limit: loop until a time budget set in a CONFIG block (about 80% of the
   limit), then print the best answer found so far. Never risk a timeout.
-- C++: must compile with `g++ -std=c++17 -O2 -o solve solve.cpp`.
+- C++: must compile with `g++ -std=c++17 -O2 -DLOCAL -o solve solve.cpp` (local, with your main)
+  AND with `g++ -std=c++17 -O2 -c solve.cpp -o /dev/null` (as HackerRank sees it, no main).
 - Verify validity with the checker before every save. Never save an answer that scores 0 anywhere
   unless the orchestrator agrees.
 - No magic numbers buried in code: tunable values go in a CONFIG block at the top.

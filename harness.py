@@ -34,6 +34,7 @@ CONFIG = {
     "stderr_tail_chars": 300,
     "min_gain": 1e-9,       # a new best must beat the old one by more than this
     "pause_file": "PAUSE",  # orchestrator: `touch PAUSE` to pause all agents, `rm PAUSE` to resume
+    "plateau_min": 20,      # status flags a problem with no NEW BEST for this many minutes
 }
 
 
@@ -130,8 +131,13 @@ def cmd_status(_args) -> None:
         return
     for folder in sorted(p for p in BEST_DIR.iterdir() if p.is_dir()):
         score_file = folder / "SCORE"
-        line = score_file.read_text().strip() if score_file.exists() else "(none)"
-        print(f"{folder.name:>6}  {line}")
+        if not score_file.exists():
+            print(f"{folder.name:>6}  (none)")
+            continue
+        score, rest = score_file.read_text().strip().split(" ", 1)
+        mins = (time.time() - score_file.stat().st_mtime) / 60   # SCORE is rewritten only on a NEW BEST
+        flag = "  <- PLATEAU" if mins >= CONFIG["plateau_min"] else ""
+        print(f"{folder.name:>6}  {float(score):.4f}  last gain {int(mins):3d} min ago{flag}  ({rest})")
 
 
 def main() -> None:

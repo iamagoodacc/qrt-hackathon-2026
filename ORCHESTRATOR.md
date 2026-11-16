@@ -121,6 +121,30 @@ Ideas to hand out when stuck:
   attempt they print one line like `NEW BEST score=0.71 (best 0.65) ... idea=...`.
   A problem is "done enough" when its best is submitted on HackerRank, and it is "safe" at 70%+.
 
+### When to stop a problem (check every 10 minutes)
+Run `python3 harness.py status`. Each problem shows `last gain N min ago`, and `<- PLATEAU`
+once it hasn't improved for 20 minutes. Combine that with the problem's HackerRank score:
+
+| Situation | Decision |
+|-----------|----------|
+| No valid submission on HackerRank yet | Top priority. Keep all its agents going |
+| HackerRank below 70% | Keep going. If it shows `PLATEAU`: give a new idea or add a `fable` agent |
+| HackerRank 70%+, no `PLATEAU` | Keep going: it's still improving |
+| HackerRank 70%+ and `PLATEAU` | Stop its Claude agents and move them to your weakest problem |
+| HackerRank 95%+ | Stop. Little left to gain |
+| 10 minutes before the end | Stop everything. Check every best is submitted |
+
+To move an agent: close its window (`Ctrl-b &`, `y`), then e.g. `./agents.sh p3-c:claude` and
+`You are agent p3-c.` Stopping loses nothing (the best is saved in `best/`), and a stuck agent
+only burns your Claude/Codex allowance.
+
+Always spend effort on the weakest problem: 0.60 -> 0.80 is worth 10x more than 0.90 -> 0.92.
+Practice example: p0 went 0.16 -> 0.76 -> 0.81 in the first 4 minutes, reached 0.82 after
+14 minutes, then nothing for 20 minutes. Big jumps come early; a long flat line means move on.
+
+**Use HackerRank's score, not the local one, for the 70% line.** On p0, fresh hidden-style
+tests scored 0.77 where the local tests said 0.82: local scores can be a bit optimistic.
+
 ### What to look out for
 | You see | Do this |
 |---------|---------|

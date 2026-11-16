@@ -48,6 +48,8 @@ Build and score a C++ solution (save the .cpp source, not the binary):
    copy `templates/checker_template.py` to `pN/checker.py` and implement EVERY rule and the
    EXACT scoring formula. Test it on the statement's sample. Then write `pN/gen.py` that writes
    20+ tests to `pN/tests/` covering small, medium and the maximum sizes from the constraints.
+   Make most tests random across the FULL allowed ranges (like hidden tests would be), not mostly
+   large ones, so the local average predicts the HackerRank score.
 3. Write the SIMPLEST valid solution first (greedy is fine). Score and save it:
    `python3 harness.py run pN "<command>" --save pN/<you>/<file> --note "baseline" --time-limit <T>`
 4. Improve ONE idea at a time. After each change, run the harness on ALL tests and report

@@ -78,8 +78,9 @@ vector<vector<int>> pack_squares(vector<int> squares) {
 
 }
 ```
-HackerRank's own hidden main() reads the input, calls `pack_squares`, and prints the result.
-Return one `{X, Y}` pair per square, in input order. See AGENTS.md "HackerRank function stubs".
+HackerRank's hidden main() is copied exactly into `p1/hr_main.cpp`. Build with `./hrbuild.sh`.
+- Input: first line n, then n lines with one side each (the SAME format as p0's tests).
+- Output: one line `X Y` per square. Return one `{X, Y}` pair per square, in input order. See AGENTS.md "HackerRank function stubs".
 
 ## STILL MISSING (orchestrator to add)
 - [ ] Constraints: max number of squares, max side length. Until known, handle ANY size safely.

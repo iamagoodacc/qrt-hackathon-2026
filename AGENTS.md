@@ -30,17 +30,17 @@ If the orchestrator's brief adds an idea, it overrides the default idea for your
   but only write in your own.
 
 Build and score a C++ solution (save the .cpp source, not the binary):
-`g++ -std=c++17 -O2 -DLOCAL -o pN/<you>/solve pN/<you>/solve.cpp && python3 harness.py run pN "./pN/<you>/solve" --save pN/<you>/solve.cpp --note "<idea>" --time-limit <T>`
+`./hrbuild.sh pN pN/<you>/solve.cpp pN/<you>/solve && python3 harness.py run pN "./pN/<you>/solve" --save pN/<you>/solve.cpp --note "<idea>" --time-limit <T>`
 
 ## HackerRank function stubs (IMPORTANT)
-HackerRank supplies its own hidden `main()` and only lets us fill in ONE function, with the exact
-signature shown in `pN/statement.md` (e.g. `vector<vector<int>> pack_squares(vector<int> squares)`).
-So every `solve.cpp` must be paste-ready:
+HackerRank supplies its own hidden `main()` (copied exactly into `pN/hr_main.cpp`) and only lets
+us fill in ONE function, with the exact signature shown in `pN/statement.md`.
+So every `solve.cpp` is exactly the text that gets pasted, and needs NO main():
 - `#include <bits/stdc++.h>` + `using namespace std;`, your helpers, then the required function
   with EXACTLY the stub's name, parameter types and return type.
-- Your own stdin-reading `main()` goes inside `#ifdef LOCAL ... #endif` (the harness compiles with
-  `-DLOCAL`; HackerRank doesn't, so it ignores that main).
-- Don't name anything `ltrim`, `rtrim` or `split`: HackerRank's hidden code usually defines them.
+- `./hrbuild.sh` builds it inside HackerRank's real main(), so local input/output formats are
+  exactly HackerRank's. (An old `#ifdef LOCAL` main is harmless: hrbuild.sh ignores it.)
+- Don't define `ltrim`, `rtrim` or `main`: HackerRank's hidden code already does.
 - Start the time-budget clock INSIDE the function, and reset ALL global state at the start of the
   function, in case it is called more than once in one run.
 
@@ -86,8 +86,7 @@ If the harness prints `PAUSED`, or a file named `PAUSE` exists in the repo root 
   HackerRank unless the orchestrator says otherwise. (You MAY use them in offline helper scripts.)
 - Respect the time limit: loop until a time budget set in a CONFIG block (about 80% of the
   limit), then print the best answer found so far. Never risk a timeout.
-- C++: must compile with `g++ -std=c++17 -O2 -DLOCAL -o solve solve.cpp` (local, with your main)
-  AND with `g++ -std=c++17 -O2 -c solve.cpp -o /dev/null` (as HackerRank sees it, no main).
+- C++: must build with `./hrbuild.sh pN pN/<you>/solve.cpp pN/<you>/solve` (HackerRank's real main).
 - Verify validity with the checker before every save. Never save an answer that scores 0 anywhere
   unless the orchestrator agrees.
 - No magic numbers buried in code: tunable values go in a CONFIG block at the top.

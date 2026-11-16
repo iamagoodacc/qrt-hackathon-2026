@@ -89,7 +89,10 @@ vector<vector<char>> generate_grid(vector<string> required_words, vector<string>
 
 }
 ```
-HackerRank's own hidden main() reads the input, calls `generate_grid`, and prints the result.
+HackerRank's hidden main() is copied exactly into `p2/hr_main.cpp`. Build with `./hrbuild.sh`.
+- Input: a line with R, then R lines (one required word each), then a line with F, then F lines
+  (one forbidden word each). F can be 0.
+- Output: N lines, letters separated by SINGLE SPACES, e.g. `A C E`. The checker must parse this.
 Return N rows of N uppercase chars. Write it in C++. See AGENTS.md "HackerRank function stubs".
 
 ## STILL MISSING (orchestrator to add)

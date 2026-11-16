@@ -20,20 +20,19 @@ vector<float> probe(float t) {
 
 }
 ```
-The `#include` block (lines 1-8) and `int main()` are FOLDED in the editor and not yet seen.
+HackerRank's hidden main() is copied exactly into `p3/hr_main.cpp`. Build with `./hrbuild.sh`.
+- Input: ONE line with a float `t`. Output: the returned floats, one per line.
+- There is NO black-box function in the hidden code. The "black box" is HackerRank's grader:
+  the only way to query it is to SUBMIT and read the feedback.
 
 ## What we know / don't know
 - We return a list of floats given one float `t`. A hidden function turns that into a "payoff".
 - Feedback after submitting is NOISY. The official score (and the bonus gate) uses the
   NOISELESS payoff of the FINAL submission -> the LAST submission must be our best candidate.
 - No local checker is possible until we know more: the scoring is hidden on HackerRank.
-- UNKNOWN: what `t` means, how many floats to return, what the payoff function looks like,
-  whether the folded header gives us a function to call ("query the black box"), and how
-  `main()` calls `probe` (once? many times with different t?).
+- UNKNOWN: what `t` means, how many floats to return, what the payoff function looks like.
 
 ## MISSING (orchestrator to add)
-- [ ] Expanded folded code: the `#include` block (click `>` on line 1) and `int main()` (click `>`
-      on line 21). This likely shows how probe is called and maybe a black-box function to query.
 - [ ] What "Run code" shows with the empty stub (sample input t, output, any feedback message).
 - [ ] Time limit, and whether the number of submissions is limited.
 

@@ -22,6 +22,7 @@ fi
 
 if ! tmux has-session -t "$SESSION" 2>/dev/null; then
   tmux new-session -d -s "$SESSION" -n home -c "$ROOT"
+  tmux set-option -t "$SESSION" mouse on   # click window names to switch; wheel scrolls; Shift+drag copies
 fi
 
 for spec in "$@"; do

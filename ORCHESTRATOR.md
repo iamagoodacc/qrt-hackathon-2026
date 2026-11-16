@@ -89,6 +89,12 @@ Then launch and brief the agents.
 2. In the `home` window: `python3 harness.py status` (best score per problem).
 3. Score went up? Submit it (section 6).
 
+**Checking progress never needs a pause.** Agents keep working while you look:
+- `watch -n 30 python3 harness.py status` in `home` = live scoreboard (`Ctrl-C` stops watching).
+- `tail best/log.txt` = every saved attempt: time, problem, score, file, idea.
+- **To really pause one agent:** press `Esc` in its window. It stops and waits. Ask it something
+  ("Summarise what you've tried and what's next, in 3 lines"), then type `continue`.
+
 **Agent not improving for 15 minutes?** Give it a new idea (list below). If it seems
 confused, start it fresh: type `/clear` (Claude) or `/new` (Codex), then the one-line brief again.
 

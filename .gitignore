@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+.env
+*.o
+solve
+a.out
+p*/*/solve

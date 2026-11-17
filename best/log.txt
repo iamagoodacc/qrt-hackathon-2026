@@ -14,3 +14,5 @@
 19:14:26 p2 0.5225 /home/wangz/c3/p2/c/solve2.cpp p2-c LNS 3.5x faster scan + ejection weights (WI=1,TB=3)
 19:25:54 p4 0.9878 /home/wangz/c3/p4/a/solve.cpp baseline: geometric loops with mask-CSP fallback; fixed witness refs
 19:30:36 p4 1.0000 /home/wangz/c3/p4/b/solve2.cpp p4-b edge CSP + longest-chain DFS + B&B restarts, with p4-a geometric loops as start
+19:59:48 p4 0.8692 /home/wangz/c3/p4/b/solve3.cpp p4-b solve3: +black-arm/white-orient rules, other-fragment targets, restarts 2000 nodes, 5.5s hard stop
+20:01:55 p4 0.9022 /home/wangz/c3/p4/b/solve4.cpp MANUAL save on orchestrator request (old SCORE 1.0 was from the old easy test set)

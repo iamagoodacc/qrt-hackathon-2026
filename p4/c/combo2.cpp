@@ -13,7 +13,10 @@ double SOLVE_LIMIT_S = 5.5;      // never search for a first loop beyond this (H
 int PROBE_ROUNDS = 50;           // max failed-literal probing sweeps at the root
 double RESTART_NODES0 = 50000;   // node limit of the first DFS run
 double RESTART_GROWTH = 2.0;     // node limit multiplier per restart
-int CONN_CHECK = 1;              // prune DFS nodes whose pearls/loop cells are disconnected
+int CONN_CHECK = 2;              // prune DFS nodes whose pearls/loop cells are disconnected
+double PHASE_A_S = 0.3;          // plain-DFS phase length before switching to probing DFS
+int PROBE_FRONTIER = 1;          // DFS-node probing only on edges at fragment ends / unfinished pearls
+int PROBE_CONN = 0;              // also run the biconnectivity check inside each probe
 int PROBE_DEPTH = 0;              // also probe (one sweep) at DFS nodes shallower than this depth
 }
 
@@ -31,6 +34,7 @@ vector<vector<int>> pearlsNear;  // pearls within Manhattan distance 2 of a cell
 chrono::steady_clock::time_point T0;
 double elapsed() { return chrono::duration<double>(chrono::steady_clock::now() - T0).count(); }
 long long nodes, nodeLimit = LLONG_MAX;
+double curLimit; int curProbeDepth;
 bool timeUp, aborted, randomize;
 uint64_t rs = 0x9E3779B97F4A7C15ULL;
 inline uint64_t rnd() { rs ^= rs << 13; rs ^= rs >> 7; rs ^= rs << 17; return rs; }
@@ -194,6 +198,43 @@ bool validLoop(const vector<string> &out, const vector<string> &g) {
 }
 
 vector<string> gridIn, solution;
+// Tarjan: a cell whose removal separates required cells (pearls / loop cells) => contradiction
+vector<int> tdisc, tlow, tsub, tpe, tpv, tdi, tstk;
+bool biconnOK() {
+    if ((int)tdisc.size() != NC) { tdisc.assign(NC, 0); tlow.assign(NC, 0); tsub.assign(NC, 0); tpe.assign(NC, 0); tpv.assign(NC, 0); tdi.assign(NC, 0); }
+    int root = -1, totalReq = 0;
+    for (int c = 0; c < NC; c++) if (deg[c] > 0 || pearl[c]) { totalReq++; if (root < 0) root = c; }
+    if (root < 0) return true;
+    for (int c = 0; c < NC; c++) tdisc[c] = 0;
+    int timer = 0, rootReqChildren = 0;
+    tstk.clear();
+    tdisc[root] = tlow[root] = ++timer; tsub[root] = 1; tpe[root] = -2; tpv[root] = -1; tdi[root] = 0;
+    tstk.push_back(root);
+    while (!tstk.empty()) {
+        int v = tstk.back();
+        if (tdi[v] < 4) {
+            int d = tdi[v]++;
+            int e = ce[v][d];
+            if (S(e) == 0 || e == tpe[v]) continue;
+            int w = nb[v][d];
+            if (!tdisc[w]) {
+                tdisc[w] = tlow[w] = ++timer; tsub[w] = (deg[w] > 0 || pearl[w]) ? 1 : 0;
+                tpe[w] = e; tpv[w] = v; tdi[w] = 0; tstk.push_back(w);
+            } else tlow[v] = min(tlow[v], tdisc[w]);
+        } else {
+            tstk.pop_back();
+            int p = tpv[v];
+            if (p < 0) continue;
+            tlow[p] = min(tlow[p], tlow[v]);
+            if (tlow[v] >= tdisc[p] && tsub[v] > 0) {
+                if (p != root) return false;
+                if (++rootReqChildren >= 2) return false;
+            }
+            tsub[p] += tsub[v];
+        }
+    }
+    return tsub[root] == totalReq;
+}
 vector<int> bfsMark, bfsQ; int bfsStamp = 0;
 // all pearls and loop cells must lie in one component of the graph of non-off edges
 bool connected() {
@@ -210,18 +251,24 @@ bool connected() {
     return true;
 }
 
-bool probeSweep(bool &changed) {
+vector<int> probeList;
+bool probeSweep(bool &changed, bool frontier = false) {
     changed = false;
-    for (int e = 0; e < NE; e++) {
+    probeList.clear();
+    if (frontier) {
+        for (int c = 0; c < NC; c++) if ((deg[c] == 1 || (pearl[c] && deg[c] < 2)) && unk[c])
+            for (int d = 0; d < 4; d++) { int e = ce[c][d]; if (S(e) == -1 && (d == 1 || d == 2 || !(deg[nb[c][d]] == 1 || (pearl[nb[c][d]] && deg[nb[c][d]] < 2)))) probeList.push_back(e); }
+    } else for (int e = 0; e < NE; e++) probeList.push_back(e);
+    for (int e : probeList) {
         if (st[e] != -1) continue;
-        if ((e & 63) == 0 && elapsed() > MCFG::SOLVE_LIMIT_S) { timeUp = true; return true; }
+        if ((e & 63) == 0 && elapsed() > curLimit) { timeUp = true; return true; }
         size_t mark = trail.size();
-        bool ok1 = setEdge(e, 1) && propagate();
+        bool ok1 = setEdge(e, 1) && propagate() && (!MCFG::PROBE_CONN || closedF || biconnOK());
         if (ok1 && closedF) { auto o = render(); if (validLoop(o, gridIn)) { solution = o; } ok1 = !solution.empty(); }
         undo(mark);
         if (!solution.empty()) return true;
         if (!ok1) { if (!setEdge(e, 0) || !propagate()) return false; changed = true; continue; }
-        bool ok0 = setEdge(e, 0) && propagate();
+        bool ok0 = setEdge(e, 0) && propagate() && (!MCFG::PROBE_CONN || biconnOK());
         undo(mark);
         if (!ok0) { if (!setEdge(e, 1) || !propagate()) return false; changed = true; }
     }
@@ -229,7 +276,7 @@ bool probeSweep(bool &changed) {
 }
 
 bool dfs(int depth) {
-    if ((++nodes & 255) == 0 && elapsed() > MCFG::SOLVE_LIMIT_S) timeUp = true;
+    if ((++nodes & 255) == 0 && elapsed() > curLimit) timeUp = true;
     if (nodes > nodeLimit) aborted = true;
     if (timeUp || aborted) return false;
     if (closedF) {
@@ -238,10 +285,11 @@ bool dfs(int depth) {
         return false;
     }
     size_t mark0 = trail.size();
-    if (MCFG::CONN_CHECK && !connected()) return false;
-    if (depth < MCFG::PROBE_DEPTH) {
+    if (MCFG::CONN_CHECK == 1 && !connected()) return false;
+    if (MCFG::CONN_CHECK == 2 && !biconnOK()) return false;
+    if (depth < curProbeDepth) {
         bool ch;
-        if (!probeSweep(ch)) { undo(mark0); return false; }
+        if (!probeSweep(ch, MCFG::PROBE_FRONTIER)) { undo(mark0); return false; }
         if (!solution.empty()) return true;
         if (closedF) { bool r = dfs(depth + 1); if (!r) undo(mark0); return r; }
     }
@@ -288,6 +336,7 @@ bool dfs(int depth) {
 // returns a valid loop or empty vector
 vector<string> run(const vector<string> &grid, double t0offset) {
     T0 = chrono::steady_clock::now() - chrono::duration_cast<chrono::steady_clock::duration>(chrono::duration<double>(t0offset));
+    curLimit = MCFG::SOLVE_LIMIT_S; curProbeDepth = 0;
     gridIn = grid; solution.clear(); timeUp = false; nodes = 0;
     R = grid.size(); C = grid[0].size(); NC = R * C;
     pearl.assign(NC, 0); numPearls = 0;
@@ -327,16 +376,22 @@ vector<string> run(const vector<string> &grid, double t0offset) {
     }
     if (!solution.empty()) return solution;
     if (closedF) { auto o = render(); if (validLoop(o, gridIn)) return o; }
-    // DFS with randomised restarts and growing node limits
+    // portfolio: plain DFS (fast on easy/dense puzzles), then DFS with frontier probing at every node
     size_t root = trail.size();
-    double lim = MCFG::RESTART_NODES0;
-    for (int restart = 0; !timeUp; restart++) {
-        randomize = restart > 0;
-        nodes = 0; nodeLimit = (long long)lim; aborted = false;
-        if (dfs(0)) return solution;
-        undo(root);
-        if (!aborted) break;   // search space exhausted (should not happen on solvable puzzles)
-        lim *= MCFG::RESTART_GROWTH;
+    for (int phase = 0; phase < 2; phase++) {
+        curProbeDepth = phase == 0 ? MCFG::PROBE_DEPTH : 1000000000;
+        curLimit = phase == 0 ? min(MCFG::SOLVE_LIMIT_S, elapsed() + MCFG::PHASE_A_S) : MCFG::SOLVE_LIMIT_S;
+        timeUp = false;
+        double lim = MCFG::RESTART_NODES0;
+        for (int restart = 0; !timeUp; restart++) {
+            randomize = restart > 0;
+            nodes = 0; nodeLimit = (long long)lim; aborted = false;
+            if (dfs(0)) return solution;
+            undo(root);
+            if (!aborted) break;
+            lim *= MCFG::RESTART_GROWTH;
+        }
+        if (elapsed() > MCFG::SOLVE_LIMIT_S) break;
     }
     return {};
 }
@@ -351,6 +406,9 @@ vector<string> solve(vector<string> grid) {
 #ifdef MZDBG
     if (getenv("PD")) MCFG::PROBE_DEPTH = atoi(getenv("PD"));
     if (getenv("CC")) MCFG::CONN_CHECK = atoi(getenv("CC"));
+    if (getenv("PA")) MCFG::PHASE_A_S = atof(getenv("PA"));
+    if (getenv("PF")) MCFG::PROBE_FRONTIER = atoi(getenv("PF"));
+    if (getenv("PC")) MCFG::PROBE_CONN = atoi(getenv("PC"));
     if (getenv("SL")) MCFG::SOLVE_LIMIT_S = atof(getenv("SL"));
     if (getenv("RN")) MCFG::RESTART_NODES0 = atof(getenv("RN"));
     if (getenv("RG")) MCFG::RESTART_GROWTH = atof(getenv("RG"));
@@ -548,10 +606,10 @@ void saRun(double tEndAbs, int runs, const vector<unsigned char> *init) {
 
 // ======================= combined entry point (p4-c combo2) =======================
 namespace C2CFG {
-double CSP_FIRST_S = 0.6;        // first CSP attempt ends by this time
-double SHORTEN_UNTIL_S = 0.95;   // SA shortening phase ends here (when a loop exists)
-double CSP_LAST_S = 5.0;         // if still no loop, keep the CSP going until here
-double SA_RESCUE_S = 5.6;        // then SA alone until here
+double CSP_LIMIT_S = 5.0;        // CSP searches for a first loop until here (returns as soon as found)
+double SHORTEN_UNTIL_S = 0.95;   // SA shortening ends here when the loop was found early
+double SHORTEN_MIN_S = 0.1;      // minimum SA shortening time after a late CSP loop
+double SA_RESCUE_S = 5.6;        // no CSP loop at all: SA alone until here
 }
 static int loopLen2(const vector<string> &g) { int L = 0; for (auto &r : g) for (char ch : r) L += ch != '.'; return L; }
 
@@ -563,24 +621,16 @@ vector<string> solve(vector<string> grid) {
     msy::T0 = chrono::steady_clock::now();
     msy::rs = 0x2545F4914F6CDD1DULL;
     msy::saSetup(grid);
-    // 1) CSP
-    MCFG::SOLVE_LIMIT_S = C2CFG::CSP_FIRST_S;
+    MCFG::SOLVE_LIMIT_S = C2CFG::CSP_LIMIT_S;
     vector<string> csp = mz::run(grid, msy::elapsed());
-    // 2) SA: seeded from the CSP loop (if any) and from rectangles
     if (!csp.empty()) {
         auto reg = msy::regionFromLoop(csp);
         double t = msy::elapsed();
-        double tEnd = max(C2CFG::SHORTEN_UNTIL_S, t + 0.15);
+        double tEnd = max(C2CFG::SHORTEN_UNTIL_S, t + C2CFG::SHORTEN_MIN_S);
         msy::saRun(t + (tEnd - t) * 0.5, 4, &reg);
         msy::saRun(tEnd, max(1, CFG4::RESTARTS / 2), nullptr);
     } else {
-        msy::saRun(C2CFG::SHORTEN_UNTIL_S, max(1, CFG4::RESTARTS / 2), nullptr);
-        if (msy::saBest.empty()) {
-            // 3) rescue: more CSP, then SA
-            MCFG::SOLVE_LIMIT_S = C2CFG::CSP_LAST_S;
-            csp = mz::run(grid, msy::elapsed());
-            if (csp.empty()) msy::saRun(C2CFG::SA_RESCUE_S, 8, nullptr);
-        }
+        msy::saRun(C2CFG::SA_RESCUE_S, 8, nullptr);
     }
     int cspLen = csp.empty() ? 0 : loopLen2(csp);
     vector<string> best;

@@ -7,7 +7,7 @@ using namespace std;
 
 namespace P4CFG {
 double FIRST_DEADLINE_S = 5.5;   // keep searching for a first valid loop up to this time
-double IMPROVE_UNTIL_S = 0.9;    // after a loop is found, try restarts for shorter loops until here
+double IMPROVE_UNTIL_S = 0.8;    // after a loop is found, try restarts for shorter loops until here
 long long RESTART_NODES = 20000; // node limit of one randomised restart (improvement phase)
 double HARD_STOP_S = 5.5;        // DFS aborts at this time whatever happens
 double ORDER_NOISE = 3.0;        // random noise (cells) added to the distance ordering on restarts
@@ -17,11 +17,14 @@ int PROBE_ROUNDS = 4;            // max probing sweeps
 int CONN = 1;                    // 1 = prune when pearls / loop cells are disconnected
 int ALT_FOCUS = 0;               // 1 = alternate FOCUS between restarts while no loop is found
 int FOCUS = 0;                   // branch on the longest chain's end (1) or the most constrained end (0)
-long long FIRST_NODES = 200000;  // node limit of the first (deterministic) search, doubled per restart
+long long FIRST_NODES = 2000;    // node limit of the first (deterministic) search, doubled per restart
 int ORDER = 0;                   // value order: 0 = towards target, 1 = Warnsdorff
-double NODE_GROWTH = 2.0;        // restart node limit multiplier while no loop is found
+double NODE_GROWTH = 1.0;        // restart node limit multiplier while no loop is found
 long long PICK_WORK = 200000;    // FOCUS 2: max end x target pairs scanned when picking a new focus
-int PEARL_FIRST = 1;             // 1 = decide every pearl's edges before extending chains
+int PEARL_FIRST = 0;             // 1 = decide every pearl's edges before extending chains
+double SA_T0 = 2.0;              // loop-shape SA start temperature (violation units)
+double SA_T1 = 0.05;             // loop-shape SA end temperature
+double SA_LAMBDA = 0.003;        // loop-shape SA cost per loop cell (prefers short loops)
 int BB = 1;                      // 1 = prune restarts with on-edges >= best length (branch and bound)
 }
 
@@ -207,6 +210,133 @@ struct Solver {
  }
 };
 }
+
+
+// ---------- SA on the loop shape: loop = boundary of a hole-free, pinch-free set of 2x2 faces ----------
+namespace loopsa {
+int R, C, FR, FC;
+vector<char> inF;                 // face (r,c) covers cells (r..r+1, c..c+1)
+const vector<char> *pearlp;
+inline int F(int r, int c) { return (r < 0 || c < 0 || r >= FR || c >= FC) ? 0 : inF[r * FC + c]; }
+inline int mask(int r, int c) {   // N1 E2 S4 W8 at cell (r,c)
+    int a = F(r - 1, c - 1), b = F(r - 1, c), c2 = F(r, c - 1), d = F(r, c);
+    return (a ^ b) | ((b ^ d) << 1) | ((c2 ^ d) << 2) | ((a ^ c2) << 3);
+}
+inline bool pinch(int r, int c) {
+    int a = F(r - 1, c - 1), b = F(r - 1, c), c2 = F(r, c - 1), d = F(r, c);
+    return a == d && b == c2 && a != b;
+}
+inline bool straightM(int m) { return m == 5 || m == 10; }
+const int DR4[4] = {-1, 0, 1, 0}, DC4[4] = {0, 1, 0, -1};
+double pearlCost(int r, int c) {
+    char p = (*pearlp)[r * C + c];
+    int m = mask(r, c);
+    if (m == 0) return 2;
+    if (p == 'W') {
+        if (!straightM(m)) return 1;
+        int d1 = m == 5 ? 0 : 1, d2 = d1 + 2;
+        int m1 = mask(r + DR4[d1], c + DC4[d1]), m2 = mask(r + DR4[d2], c + DC4[d2]);
+        return (straightM(m1) && straightM(m2)) ? 1 : 0;
+    }
+    double v = straightM(m) ? 1 : 0;
+    for (int d = 0; d < 4; d++) if (m >> d & 1) if (!straightM(mask(r + DR4[d], c + DC4[d]))) v += 0.5;
+    return v;
+}
+// 8-ring simple-point test for face (r,c): F 4-connected, complement 8-connected
+bool simple(int r, int c) {
+    static const int rr[8] = {-1, -1, 0, 1, 1, 1, 0, -1}, cc[8] = {0, 1, 1, 1, 0, -1, -1, -1};
+    int v[8], par[8];
+    for (int i = 0; i < 8; i++) { v[i] = F(r + rr[i], c + cc[i]); par[i] = i; }
+    function<int(int)> fd = [&](int x) { return par[x] == x ? x : par[x] = fd(par[x]); };
+    auto un = [&](int a, int b) { par[fd(a)] = fd(b); };
+    for (int i = 0; i < 8; i++) {
+        int j = (i + 1) & 7;
+        if (v[i] == v[j]) un(i, j);
+        if (!v[i] && (i % 2 == 0)) { int k = (i + 2) & 7; if (!v[k]) un(i, k); }  // complement: 8-adjacent edge neighbours
+    }
+    int t4 = 0, t8 = 0; bool seen[8] = {};
+    for (int i = 0; i < 8; i++) {
+        int root = fd(i);
+        if (seen[root]) continue;
+        if (v[i]) {
+            bool adj4 = false;
+            for (int j = 0; j < 8; j++) if (fd(j) == root && j % 2 == 0) adj4 = true;
+            if (adj4) { seen[root] = true; t4++; }
+        } else { seen[root] = true; t8++; }
+    }
+    return t4 == 1 && t8 == 1;
+}
+vector<string> run(const vector<string> &grid, double deadline, double t0s, double t1s, double lam,
+                   chrono::steady_clock::time_point T0, uint64_t &rs, int &outLen) {
+    auto el = [&]() { return chrono::duration<double>(chrono::steady_clock::now() - T0).count(); };
+    auto rnd = [&]() { rs ^= rs << 7; rs ^= rs >> 9; return rs; };
+    R = grid.size(); C = grid[0].size(); FR = R - 1; FC = C - 1;
+    static vector<char> pv; pv.assign(R * C, 0);
+    vector<pair<int,int>> pearls;
+    for (int r = 0; r < R; r++) for (int c = 0; c < C; c++) if (grid[r][c] != '.') { pv[r * C + c] = grid[r][c]; pearls.push_back({r, c}); }
+    pearlp = &pv;
+    inF.assign(FR * FC, 1);
+    double viol = 0; int L = 0;
+    for (auto [r, c] : pearls) viol += pearlCost(r, c);
+    for (int r = 0; r < R; r++) for (int c = 0; c < C; c++) L += __builtin_popcount(mask(r, c));
+    L /= 2;
+    int nF = FR * FC;
+    vector<string> best; int bestL = INT_MAX;
+    double minViol = 1e18;
+    long long it = 0; double T = t0s, start = el();
+    vector<int> near;
+    while (true) {
+        if ((it & 1023) == 0) {
+            double now = el();
+            if (now > deadline) break;
+            double f = (now - start) / max(1e-9, deadline - start);
+            T = t0s * pow(t1s / t0s, f);
+        }
+        it++;
+        int fr = rnd() % FR, fc = rnd() % FC;
+        int cur = inF[fr * FC + fc];
+        if (cur && nF == 1) continue;
+        // only faces touching the boundary can be toggled simply
+        if (!simple(fr, fc)) continue;
+        // affected pearls: cells rows fr-1..fr+2, cols fc-1..fc+2
+        double before = 0;
+        near.clear();
+        for (int r = max(0, fr - 1); r <= min(R - 1, fr + 2); r++)
+            for (int c = max(0, fc - 1); c <= min(C - 1, fc + 2); c++) if (pv[r * C + c]) { near.push_back(r * C + c); before += pearlCost(r, c); }
+        int dL = 0;
+        { // edges of the face: top, bottom, left, right
+            int e1 = F(fr - 1, fc) ^ cur, e2 = F(fr + 1, fc) ^ cur, e3 = F(fr, fc - 1) ^ cur, e4 = F(fr, fc + 1) ^ cur;
+            dL = 4 - 2 * (e1 + e2 + e3 + e4);
+        }
+        inF[fr * FC + fc] = !cur;
+        bool ok = !pinch(fr, fc) && !pinch(fr, fc + 1) && !pinch(fr + 1, fc) && !pinch(fr + 1, fc + 1);
+        double after = 0;
+        if (ok) for (int x : near) after += pearlCost(x / C, x % C);
+        double delta = (after - before) + lam * dL;
+        if (ok && (delta <= 0 || (rnd() >> 11) * (1.0 / 9007199254740992.0) < exp(-delta / T))) {
+            viol += after - before; L += dL; nF += cur ? -1 : 1;
+            if (viol < minViol) minViol = viol;
+            if (viol < 1e-9 && L < bestL) {
+                bestL = L;
+                best.assign(R, string(C, '.'));
+                static const char *sym = "..........";
+                (void)sym;
+                for (int r = 0; r < R; r++) for (int c = 0; c < C; c++) {
+                    int m = mask(r, c); char ch = '.';
+                    if (m == 5) ch = '|'; else if (m == 10) ch = '-'; else if (m == 3) ch = 'L';
+                    else if (m == 9) ch = 'J'; else if (m == 6) ch = 'F'; else if (m == 12) ch = '7';
+                    best[r][c] = ch;
+                }
+            }
+        } else inF[fr * FC + fc] = cur;
+    }
+    outLen = bestL;
+#ifdef LOCAL
+    cerr << "SA minViol " << minViol << " finalViol " << viol << " iters " << it << " L " << L << "\n";
+#endif
+    return best;
+}
+}  // namespace loopsa
 
 namespace p4b {
 const int DR[4] = {-1, 0, 1, 0};  // N E S W
@@ -418,7 +548,8 @@ int pickNearestEnd() {
 bool dfs(int focus = -1) {
     if (!propagate()) return false;
 #ifdef LOCAL
-    if (getenv("SNAP") && totalOn > dbgMaxOn) {
+    static const bool snapOn = getenv("SNAP") != nullptr;
+    if (snapOn && totalOn > dbgMaxOn) {
         dbgMaxOn = totalOn; dbgSnap.assign(R, string(C, ' '));
         for (int c = 0; c < NC; c++) {
             bool n = S(c, 0) == 1, e = S(c, 1) == 1, s2 = S(c, 2) == 1, w = S(c, 3) == 1;
@@ -596,6 +727,14 @@ vector<string> run(vector<string> grid) {
             if (len > 0) { geoFound = true; bestLen = len; best = g; }
         }
     }
+#ifdef LOCAL
+    if (getenv("SAONLY")) {
+        int L2 = INT_MAX;
+        auto g2 = loopsa::run(grid, atof(getenv("SAONLY")), P4CFG::SA_T0, P4CFG::SA_T1, P4CFG::SA_LAMBDA, T0, rs, L2);
+        cerr << "SA len " << L2 << " t " << elapsed() << "\n";
+        return g2.empty() ? best : g2;
+    }
+#endif
     bool ok0 = propagate();
     if (ok0 && P4CFG::PROBE_ROOT) ok0 = probe(nullptr) && propagate();
 #ifdef LOCAL
@@ -677,6 +816,9 @@ int main() {
     if (getenv("ORD")) P4CFG::ORDER = atoi(getenv("ORD"));
     if (getenv("NG")) P4CFG::NODE_GROWTH = atof(getenv("NG"));
     if (getenv("HS")) { P4CFG::HARD_STOP_S = atof(getenv("HS")); P4CFG::FIRST_DEADLINE_S = atof(getenv("HS")); }
+    if (getenv("ST0")) P4CFG::SA_T0 = atof(getenv("ST0"));
+    if (getenv("ST1")) P4CFG::SA_T1 = atof(getenv("ST1"));
+    if (getenv("SLAM")) P4CFG::SA_LAMBDA = atof(getenv("SLAM"));
     if (getenv("PF")) P4CFG::PEARL_FIRST = atoi(getenv("PF"));
     if (getenv("FO")) P4CFG::FOCUS = atoi(getenv("FO"));
     if (getenv("RN")) P4CFG::RESTART_NODES = atoll(getenv("RN"));

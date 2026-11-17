@@ -14,6 +14,8 @@ int PROBE_ROUNDS = 50;           // max failed-literal probing sweeps at the roo
 double RESTART_NODES0 = 50000;   // node limit of the first DFS run
 double RESTART_GROWTH = 2.0;     // node limit multiplier per restart
 int CONN_CHECK = 2;              // prune DFS nodes whose pearls/loop cells are disconnected
+int ROOT_PROBE_CONN = 0;         // root probing sweeps that include the biconnectivity check
+int BRANCH_PEARLS = 0;           // 1 = branch on unfinished pearls before fragment ends
 double PHASE_A_S = 0.3;          // plain-DFS phase length before switching to probing DFS
 int PROBE_FRONTIER = 1;          // DFS-node probing only on edges at fragment ends / unfinished pearls
 int PROBE_CONN = 0;              // also run the biconnectivity check inside each probe
@@ -255,7 +257,10 @@ vector<int> probeList;
 bool probeSweep(bool &changed, bool frontier = false) {
     changed = false;
     probeList.clear();
-    if (frontier) {
+    if (frontier && MCFG::PROBE_FRONTIER == 2) {
+        for (int c = 0; c < NC; c++) if (deg[c] == 1 && unk[c])
+            for (int d = 0; d < 4; d++) { int e = ce[c][d]; if (S(e) == -1) probeList.push_back(e); }
+    } else if (frontier) {
         for (int c = 0; c < NC; c++) if ((deg[c] == 1 || (pearl[c] && deg[c] < 2)) && unk[c])
             for (int d = 0; d < 4; d++) { int e = ce[c][d]; if (S(e) == -1 && (d == 1 || d == 2 || !(deg[nb[c][d]] == 1 || (pearl[nb[c][d]] && deg[nb[c][d]] < 2)))) probeList.push_back(e); }
     } else for (int e = 0; e < NE; e++) probeList.push_back(e);
@@ -295,9 +300,45 @@ bool dfs(int depth) {
     }
     // branch cell: fragment end with fewest unknown edges
     int best = -1, bu = 9, ties = 0;
-    if (!randomize) {
+    if (MCFG::BRANCH_PEARLS == 2) {
+        // row-major sweep: first undecided edge, try on then off
+        int e = -1;
+        for (int x = 0; x < NE; x++) if (st[x] == -1) { e = x; break; }
+        if (e < 0) return false;
+        int first = (randomize && (rnd() & 1)) ? 0 : 1;
+        for (int t = 0; t < 2; t++) {
+            int v = t == 0 ? first : 1 - first;
+            size_t mark = trail.size();
+            if (setEdge(e, v) && propagate() && dfs(depth + 1)) return true;
+            undo(mark);
+            if (timeUp || aborted) { undo(mark0); return false; }
+        }
+        undo(mark0);
+        return false;
+    }
+    if (MCFG::BRANCH_PEARLS == 1) {
+        for (int c = 0; c < NC; c++) if (pearl[c] && deg[c] < 2 && unk[c] > 0) {
+            int opts = deg[c] == 1 ? unk[c] : unk[c] + 1;
+            if (opts < bu || (opts == bu && randomize && rnd() % (++ties) == 0)) { if (opts < bu) ties = 1; bu = opts; best = c; }
+        }
+        if (best >= 0 && deg[best] == 0) {
+            // branch: first unknown edge on / off
+            int e = -1;
+            for (int d = 0; d < 4; d++) if (S(ce[best][d]) == -1) { e = ce[best][d]; break; }
+            for (int v = 1; v >= 0; v--) {
+                size_t mark = trail.size();
+                if (setEdge(e, v) && propagate() && dfs(depth + 1)) return true;
+                undo(mark);
+                if (timeUp || aborted) { undo(mark0); return false; }
+            }
+            undo(mark0);
+            return false;
+        }
+        if (best < 0) bu = 9;
+    }
+    if (best < 0 && !randomize) {
         for (int c = 0; c < NC; c++) if (deg[c] == 1 && unk[c] < bu) { bu = unk[c]; best = c; if (bu <= 2) break; }
-    } else {
+    } else if (best < 0) {
         for (int c = 0; c < NC; c++) if (deg[c] == 1) {
             if (unk[c] < bu) { bu = unk[c]; best = c; ties = 1; }
             else if (unk[c] == bu && rnd() % (++ties) == 0) best = c;
@@ -369,11 +410,38 @@ vector<string> run(const vector<string> &grid, double t0offset) {
     trail.clear(); trail.reserve(1 << 16); q.clear();
     for (int c = 0; c < NC; c++) enq(c);
     if (!propagate()) return {};
+#ifdef MZDBG
+    if (getenv("WIT")) {
+        ifstream f(getenv("WIT")); vector<string> w(R); for (auto &row : w) getline(f, row);
+        auto mk = [](char ch) { switch (ch) { case '|': return 5; case '-': return 10; case 'L': return 3; case 'J': return 9; case 'F': return 6; case '7': return 12; } return 0; };
+        for (int c = 0; c < NC; c++) {
+            int m = mk(w[c / C][c % C]);
+            for (int d = 0; d < 4; d++) {
+                int e = ce[c][d]; if (e == OFFE) continue;
+                if (!setEdge(e, (m >> d) & 1) || !propagate()) { cerr << "WIT FAIL cell " << c / C << "," << c % C << " d" << d << " totalOn " << totalOn << "\n"; exit(0); }
+                if (!biconnOK() && !closedF) { cerr << "WIT BICONN FAIL cell " << c / C << "," << c % C << "\n"; exit(0); }
+            }
+        }
+        cerr << "WIT ok closed=" << closedF << "\n"; exit(0);
+    }
+#endif
     for (int round = 0; round < MCFG::PROBE_ROUNDS; round++) {
         bool ch;
         if (!probeSweep(ch)) return {};
         if (!solution.empty() || timeUp || !ch) break;
     }
+    if (MCFG::ROOT_PROBE_CONN && solution.empty() && !timeUp) {
+        int keep = MCFG::PROBE_CONN; MCFG::PROBE_CONN = 1;
+        for (int round = 0; round < MCFG::PROBE_ROUNDS; round++) {
+            bool ch;
+            if (!probeSweep(ch)) { MCFG::PROBE_CONN = keep; return {}; }
+            if (!solution.empty() || timeUp || !ch) break;
+        }
+        MCFG::PROBE_CONN = keep;
+    }
+#ifdef MZDBG
+    { int und = 0; for (int e = 0; e < NE; e++) und += st[e] == -1; cerr << "root: undecided " << und << "/" << NE << " t=" << elapsed() << "\n"; }
+#endif
     if (!solution.empty()) return solution;
     if (closedF) { auto o = render(); if (validLoop(o, gridIn)) return o; }
     // portfolio: plain DFS (fast on easy/dense puzzles), then DFS with frontier probing at every node
@@ -406,6 +474,8 @@ vector<string> solve(vector<string> grid) {
 #ifdef MZDBG
     if (getenv("PD")) MCFG::PROBE_DEPTH = atoi(getenv("PD"));
     if (getenv("CC")) MCFG::CONN_CHECK = atoi(getenv("CC"));
+    if (getenv("RC")) MCFG::ROOT_PROBE_CONN = atoi(getenv("RC"));
+    if (getenv("BP")) MCFG::BRANCH_PEARLS = atoi(getenv("BP"));
     if (getenv("PA")) MCFG::PHASE_A_S = atof(getenv("PA"));
     if (getenv("PF")) MCFG::PROBE_FRONTIER = atoi(getenv("PF"));
     if (getenv("PC")) MCFG::PROBE_CONN = atoi(getenv("PC"));

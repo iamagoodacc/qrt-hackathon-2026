@@ -32,3 +32,15 @@ Wait for checker/tests, audit checker. Then an approach different from b's.
   best 1.0 on easy shared tests). RECOMMEND orchestrator add tests_hard to p4/tests and consider combo.cpp.
 - Left to do: dense puzzles (density 0.4-0.8, big loops) still unsolved by both CSP and SA -> CSP needs
   stronger propagation; test 17 spends 8 s (SA phase A missed, CSP slow) -> run SA longer before CSP fallback.
+- 19:55 URGENT-brief work: p4/c/msolve.cpp = real Masyu CSP (edge vars, deg 0/2, black/white propagation incl.
+  white turn-at-one-end, sub-loop ban via fragment partner ends, root failed-literal probing, DFS at fragment end
+  with fewest options, TARJAN BICONNECTIVITY prune (cut cell separating required cells => fail), portfolio:
+  plain DFS 0.3 s then DFS with frontier probing at every node). p4/c/combo2.cpp = msolve + region-SA shortening.
+  p4/hard: 8/10 valid (fail hard_04, hard_06); tests_hard 24/24 (<0.08 s); hard_extra 9/10 (fail 08).
+  HARNESS (47 tests incl. hard): combo2 score=0.9274 zero=3 (prev combo 0.8256). best/p4 SCORE 1.0 is stale (old
+  easy set) so harness won't save -> SUBMIT p4/c/combo2.cpp MANUALLY. Compiles as paste (no main), max 5.6 s.
+- 20:10 still unsolved: hard_04, hard_06, hard_extra_08 (root leaves ~90% edges undecided; witness passes all
+  propagation + biconn checks, so no false pruning). Tried and FAILED: pearl-first branching (BP=1), row-major
+  sweep branching (BP=2), root probing with biconn (RC=1), probing only fragment ends +/- biconn (PF=2, PC=1).
+  Defaults kept (BP=0, RC=0, PF=1, PC=0, CC=2). Next ideas: stronger global reasoning (parity / region
+  access counting: a free region touched by exactly one fragment end can't be entered), or SAT-style learning.
